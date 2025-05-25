@@ -36,7 +36,6 @@ router.get('/:codigoPerfil?', async (req, res) => {
                 NUMERO_CONTACTO_1,
                 NOMBRE_CONTACTO_2,
                 NUMERO_CONTACTO_2,
-                GRADO_ACTUAL,
                 ESTADO_ALUMNO,
                 FECHA_INGRESA_REGISTRO,
                 FECHA_ULTIMA_ACTUALIZACION,
@@ -126,7 +125,6 @@ router.get('/busqueda/:variable', async (req, res) => {
                     NUMERO_CONTACTO_1,
                     NOMBRE_CONTACTO_2,
                     NUMERO_CONTACTO_2,
-                    GRADO_ACTUAL,
                     ESTADO_ALUMNO,
                     FECHA_INGRESA_REGISTRO,
                     FECHA_ULTIMA_ACTUALIZACION,
@@ -177,7 +175,6 @@ router.post('/', async (req, res) => {
         NUMERO_CONTACTO_1,
         NOMBRE_CONTACTO_2,
         NUMERO_CONTACTO_2,
-        ID_GRADO_ACTUAL,
         ACCION
     } = req.body;
 
@@ -199,7 +196,6 @@ router.post('/', async (req, res) => {
         request.input('NUMERO_CONTACTO_1', sql.VarChar(15), NUMERO_CONTACTO_1);
         request.input('NOMBRE_CONTACTO_2', sql.VarChar(100), NOMBRE_CONTACTO_2);
         request.input('NUMERO_CONTACTO_2', sql.VarChar(15), NUMERO_CONTACTO_2);
-        request.input('ID_GRADO_ACTUAL', sql.Int, ID_GRADO_ACTUAL);
         request.input('ACCION', sql.Char(1), ACCION);
         request.output('MENSAJE', sql.NVarChar(255));
 
