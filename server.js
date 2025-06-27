@@ -39,6 +39,7 @@ const alumnosgradoRoutes = require('./routes/alumnos-grado');
 const bloquesRoutes = require('./routes/bloques');
 const evaluacionesRoutes = require('./routes/evaluacion');
 const notasRoutes = require('./routes/notas');
+const calendarioRoutes = require('./routes/calendario');
 
 app.use('/periodos', periodosRoutes);
 app.use('/carreras', carrerasRoutes);
@@ -51,6 +52,7 @@ app.use('/alumnos-grado', alumnosgradoRoutes);
 app.use('/bloques', bloquesRoutes);
 app.use('/evaluaciones', evaluacionesRoutes);
 app.use('/notas', notasRoutes);
+app.use('/calendario', calendarioRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {

@@ -4,12 +4,15 @@ const sql = require('mssql');
 const router = express.Router();
 
 // Obtener todos o por código de grado
-router.get('/:codigoGrado?', async (req, res) => {
-    const { codigoGrado } = req.params;
+router.get('/:codigoGrado?/:forma?', async (req, res) => {
+    const { codigoGrado, forma } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
-
+    let campo = 'CODIGO_GRADO';
+    if (forma && forma !== '') {
+        campo = 'ID_GRADO';
+    }
     try {
         const pool = await sql.connect();
         let countQuery = `
@@ -36,8 +39,8 @@ router.get('/:codigoGrado?', async (req, res) => {
         const countRequest = pool.request();
 
         if (codigoGrado) {
-            dataQuery += ` WHERE CODIGO_GRADO = @codigoGrado`;
-            countQuery += ` WHERE CODIGO_GRADO = @codigoGrado`;
+            dataQuery += ` WHERE ${campo} = @codigoGrado`;
+            countQuery += ` WHERE ${campo} = @codigoGrado`;
             request.input('codigoGrado', sql.VarChar, codigoGrado);
             countRequest.input('codigoGrado', sql.VarChar, codigoGrado);
         }
@@ -68,7 +71,7 @@ router.get('/:codigoGrado?', async (req, res) => {
 });
 
 // Búsqueda por nombre de grado o descripción de carrera
-router.get('/busqueda/:variable', async (req, res) => {
+router.get('/busqueda/:variable/busqueda', async (req, res) => {
     const { variable } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;

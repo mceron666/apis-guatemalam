@@ -73,75 +73,91 @@ router.post('/filtrar', async (req, res) => {
 });
 router.post('/maestros', async (req, res) => {
     const {
-        ID_MAESTRO,
+        ID_PERSONA,
         ID_PERIODO_ESCOLAR,
         ID_GRADO,
-        ID_MATERIA,
-        page = 1,
-        limit = 10
+        ID_MATERIA
     } = req.body;
 
-    if (!ID_MAESTRO || !ID_PERIODO_ESCOLAR) {
-        return res.status(400).json({ error: 'ID_MAESTRO e ID_PERIODO_ESCOLAR son obligatorios' });
+    if (!ID_PERSONA || !ID_PERIODO_ESCOLAR) {
+        return res.status(400).json({ error: 'ID_PERSONA e ID_PERIODO_ESCOLAR son obligatorios' });
     }
-
-    const offset = (page - 1) * limit;
 
     try {
         const pool = await sql.connect();
         const request = pool.request();
-        const countRequest = pool.request();
 
-        let baseQuery = `FROM VL_MATERIAS_POR_PROFESOR WHERE ID_MAESTRO = @ID_MAESTRO AND ID_PERIODO_ESCOLAR = @ID_PERIODO_ESCOLAR`;
-
-        request.input('ID_MAESTRO', sql.Int, ID_MAESTRO);
+        request.input('ID_PERSONA', sql.Int, ID_PERSONA);
         request.input('ID_PERIODO_ESCOLAR', sql.Int, ID_PERIODO_ESCOLAR);
-        countRequest.input('ID_MAESTRO', sql.Int, ID_MAESTRO);
-        countRequest.input('ID_PERIODO_ESCOLAR', sql.Int, ID_PERIODO_ESCOLAR);
+
+        let whereClause = `WHERE ID_PERSONA = @ID_PERSONA AND ID_PERIODO_ESCOLAR = @ID_PERIODO_ESCOLAR`;
 
         if (ID_GRADO) {
-            baseQuery += ` AND ID_GRADO = @ID_GRADO`;
+            whereClause += ` AND ID_GRADO = @ID_GRADO`;
             request.input('ID_GRADO', sql.Int, ID_GRADO);
-            countRequest.input('ID_GRADO', sql.Int, ID_GRADO);
         }
 
         if (ID_MATERIA) {
-            baseQuery += ` AND ID_MATERIA = @ID_MATERIA`;
+            whereClause += ` AND ID_MATERIA = @ID_MATERIA`;
             request.input('ID_MATERIA', sql.Int, ID_MATERIA);
-            countRequest.input('ID_MATERIA', sql.Int, ID_MATERIA);
         }
 
-        const dataQuery = `
-            SELECT * 
-            ${baseQuery}
-            ORDER BY 1 DESC
-            OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        const query = `
+            SELECT 
+                ID_GRADO,
+                NOMBRE_GRADO,
+                NIVEL_GRADO,
+                NOMBRE_MATERIA,
+                COLOR_MATERIA,
+                USA_LETRAS_BLANCAS,
+                ID_MATERIA_GRADO, 
+                ID_MATERIA
+            FROM VL_MATERIAS_POR_PROFESOR
+            ${whereClause}
+            ORDER BY NIVEL_GRADO ASC, NOMBRE_MATERIA ASC
         `;
 
-        const countQuery = `
-            SELECT COUNT(*) AS total
-            ${baseQuery}
-        `;
+        const result = await request.query(query);
 
-        const result = await request.query(dataQuery);
-        const countResult = await countRequest.query(countQuery);
+        // Agrupar por grado
+        const gradosMap = new Map();
 
-        const total = countResult.recordset[0].total;
-        const totalPages = Math.ceil(total / limit);
-
-        res.json({
-            data: result.recordset,
-            pagination: {
-                total,
-                totalPages,
-                currentPage: parseInt(page),
-                limit: parseInt(limit)
+        result.recordset.forEach(row => {
+            const gradoKey = row.ID_GRADO;
+            if (!gradosMap.has(gradoKey)) {
+                gradosMap.set(gradoKey, {
+                    nombreGrado: row.NOMBRE_GRADO,
+                    nivelGrado: row.NIVEL_GRADO,
+                    idGrado : row.ID_GRADO,
+                    materias: []
+                });
             }
+
+            gradosMap.get(gradoKey).materias.push({
+                nombreMateria: row.NOMBRE_MATERIA,
+                color: row.COLOR_MATERIA,
+                usaLetrasBlancas: row.USA_LETRAS_BLANCAS,
+                idMateriaGrado: row.ID_MATERIA_GRADO, 
+                idMateria : row.ID_MATERIA
+            });
         });
+
+        const response = Array.from(gradosMap.values())
+            .sort((a, b) => a.nivelGrado - b.nivelGrado)
+            .map(g => ({
+                idGrado: g.idGrado, // Agregado aquí
+                nombreGrado: g.nombreGrado,
+                materias: g.materias
+            }));
+
+        res.json(response);
+
+
     } catch (err) {
         res.status(500).json({ error: 'Error al obtener los registros', details: err.message });
     }
 });
+
 
 router.post('/', async (req, res) => {
     const {

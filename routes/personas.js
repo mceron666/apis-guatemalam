@@ -2,7 +2,51 @@ const express = require('express');
 const sql = require('mssql');
 
 const router = express.Router();
+router.get('/maestros', async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
+    try {
+        const pool = await sql.connect();
+        let countQuery = `SELECT COUNT(*) as total FROM VL_PERSONAL_ESCOLAR`;
+        let dataQuery = `
+            SELECT 
+                ID_PERSONA,
+                NOMBRE_COMPLETO,
+                ID_MAESTRO
+            FROM VL_PERSONAL_ESCOLAR
+            WHERE ESTADO_MAESTRO = 'A' and ROL_PERSONA IN ('M', 'P')
+        `;
+
+        const request = pool.request();
+        const countRequest = pool.request();
+
+        dataQuery += ` ORDER BY NOMBRE_COMPLETO ASC OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+
+        const result = await request.query(dataQuery);
+        const countResult = await countRequest.query(countQuery);
+
+        const total = countResult.recordset[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        res.json({
+            data: result.recordset,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: page,
+                limit
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            error: 'Error al obtener el personal escolar',
+            details: err.message
+        });
+    }
+});
 router.get('/:codigoPerfil?', async (req, res) => {
     const { codigoPerfil } = req.params;
     const page = parseInt(req.query.page) || 1;

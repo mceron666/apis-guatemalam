@@ -4,11 +4,16 @@ const sql = require('mssql');
 const router = express.Router();
 
 // Obtener todas las materias o una específica por código
-router.get('/:codigoMateria?', async (req, res) => {
-    const { codigoMateria } = req.params;
+router.get('/:codigoMateria?/:forma?', async (req, res) => {
+    const { codigoMateria, forma } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
+
+    let campo = 'CODIGO_MATERIA';
+    if (forma && forma !== '') {
+        campo = 'ID_MATERIA';
+    }
 
     try {
         const pool = await sql.connect();
@@ -18,8 +23,8 @@ router.get('/:codigoMateria?', async (req, res) => {
         const countRequest = pool.request();
 
         if (codigoMateria) {
-            dataQuery += ` WHERE CODIGO_MATERIA = @codigoMateria`;
-            countQuery += ` WHERE CODIGO_MATERIA = @codigoMateria`;
+            dataQuery += ` WHERE ${campo} = @codigoMateria`;
+            countQuery += ` WHERE ${campo} = @codigoMateria`;
             request.input('codigoMateria', sql.VarChar, codigoMateria);
             countRequest.input('codigoMateria', sql.VarChar, codigoMateria);
         }
@@ -41,8 +46,9 @@ router.get('/:codigoMateria?', async (req, res) => {
     }
 });
 
+
 // Búsqueda de materias por nombre
-router.get('/busqueda/:variable', async (req, res) => {
+router.get('/busqueda/:variable/busqueda', async (req, res) => {
     const { variable } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -82,6 +88,9 @@ router.post('/', async (req, res) => {
         CODIGO_MATERIA,
         NOMBRE_MATERIA,
         ID_PERSONA_INGRESO,
+        COLOR_MATERIA, 
+        USA_LETRAS_BLANCAS,
+        ESTADO_MATERIA,
         ACCION
     } = req.body;
 
@@ -89,6 +98,9 @@ router.post('/', async (req, res) => {
         const request = new sql.Request();
         request.input('CODIGO_MATERIA', sql.VarChar(15), CODIGO_MATERIA);
         request.input('NOMBRE_MATERIA', sql.VarChar(50), NOMBRE_MATERIA);
+        request.input('COLOR_MATERIA', sql.Char(7), COLOR_MATERIA);
+        request.input('USA_LETRAS_BLANCAS', sql.Char(1), USA_LETRAS_BLANCAS);
+        request.input('ESTADO_MATERIA', sql.Char(1), ESTADO_MATERIA);        
         request.input('ID_PERSONA_INGRESO', sql.Int, ID_PERSONA_INGRESO);
         request.input('ACCION', sql.Char(1), ACCION);
         request.output('MENSAJE', sql.NVarChar(255));

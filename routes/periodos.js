@@ -2,7 +2,33 @@ const express = require('express');
 const sql = require('mssql');
 
 const router = express.Router();
+router.get('/seleccion', async (req, res) => {
 
+    try {
+        const pool = await sql.connect();
+        const request = pool.request();
+
+        let query = `
+            SELECT 
+                ID_PERIODO_ESCOLAR,
+                CODIGO_PERIODO,
+                DESCRIPCION_PERIODO
+            FROM VL_PERIODOS_ESCOLARES
+            WHERE FECHA_INICIO_PERIODO <= GETDATE()
+        `;
+
+        query += ` ORDER BY FECHA_INICIO_PERIODO DESC`;
+
+        const result = await request.query(query);
+        res.json(result.recordset);
+
+    } catch (err) {
+        res.status(500).json({
+            error: 'Error al obtener los períodos escolares',
+            details: err.message
+        });
+    }
+});
 router.get('/:codigoPeriodo?', async (req, res) => {
     const { codigoPeriodo } = req.params;
     const page = parseInt(req.query.page) || 1;
@@ -112,8 +138,6 @@ router.get('/:codigoPeriodo?', async (req, res) => {
         });
     }
 });
-
-
 router.get('/busqueda/:variable', async (req, res) => {
     const { variable } = req.params;
     const page = parseInt(req.query.page) || 1;
