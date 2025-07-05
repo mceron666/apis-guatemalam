@@ -107,4 +107,115 @@ router.post('/', async (req, res) => {
     }
     
 });
+// Endpoint: GET /notas-bloques/:idAlumno/:idPeriodo
+router.get('/:idAlumno/:idPeriodo', async (req, res) => {
+    const { idAlumno, idPeriodo } = req.params;
+    const sql = require('mssql');
+
+    try {
+        const request = new sql.Request();
+        request.input('ID_ALUMNO', sql.Int, idAlumno);
+        request.input('ID_PERIODO', sql.Int, idPeriodo);
+
+        // 1. Obtener las materias asignadas al alumno
+        const materiasResult = await request.query(`
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY CODIGO_MATERIA) AS NUMERO, 
+                X.ID_MATERIA,
+                NOMBRE_MATERIA, 
+                COLOR_MATERIA, 
+                USA_LETRAS_BLANCAS
+            FROM MATERIAS_ESCOLARES X 
+            WHERE EXISTS (
+                SELECT * 
+                FROM MATERIAS_POR_GRADO H 
+                WHERE H.ID_MATERIA = X.ID_MATERIA 
+                  AND H.ID_PERIODO_ESCOLAR = @ID_PERIODO 
+                  AND H.ID_GRADO = (
+                        SELECT ID_GRADO 
+                        FROM ALUMNOS_POR_GRADO 
+                        WHERE ID_PERIODO_ESCOLAR = @ID_PERIODO AND ID_ALUMNO = @ID_ALUMNO
+                  )
+            )
+        `);
+        const materias = materiasResult.recordset;
+
+        // 2. Obtener los bloques escolares del período
+        const bloquesResult = await request.query(`
+            SELECT 
+                B.ID_BLOQUE_ESCOLAR, 
+                B.NOMBRE_BLOQUE, 
+                dbo.DIFERENCIA_DE_SOLVENCIA(@ID_ALUMNO, B.FECHA_FINALIZA_BLOQUE) AS SOLVENCIA, 
+                B.FECHA_FINALIZA_BLOQUE
+            FROM BLOQUES_ESCOLARES B 
+            INNER JOIN ALUMNOS_POR_GRADO G 
+                ON B.ID_PERIODO_ESCOLAR = G.ID_PERIODO_ESCOLAR 
+            WHERE G.ID_ALUMNO = @ID_ALUMNO AND G.ID_PERIODO_ESCOLAR = @ID_PERIODO
+        `);
+        const bloques = bloquesResult.recordset;
+
+        // 3. Armar estructura final con notas por bloque si solvente
+        const bloquesConNotas = [];
+
+        for (const bloque of bloques) {
+            const { ID_BLOQUE_ESCOLAR, NOMBRE_BLOQUE, SOLVENCIA, FECHA_FINALIZA_BLOQUE } = bloque;
+
+            let notas = [];
+
+            if (SOLVENCIA >= 0) {
+                const notasRequest = new sql.Request();
+                notasRequest.input('ID_ALUMNO', sql.Int, idAlumno);
+                notasRequest.input('ID_PERIODO', sql.Int, idPeriodo);
+                notasRequest.input('ID_BLOQUE', sql.Int, ID_BLOQUE_ESCOLAR);
+
+                const notasResult = await notasRequest.query(`
+                    SELECT 
+                        ROW_NUMBER() OVER (ORDER BY X.CODIGO_MATERIA) AS NUMERO,
+                        COALESCE(T.TOTAL, 0) AS TOTAL
+                    FROM MATERIAS_ESCOLARES X
+                    LEFT JOIN (
+                       select G.ID_MATERIA, SUM(PUNTEO_ALUMNO) AS TOTAL from NOTAS_EVALUACION_POR_ALUMNO A
+INNER JOIN EVALUACION_MATERIA_DETALLE D ON A.ID_DETALLE_EVALUACION = D.ID_DETALLE_EVALUACION 
+INNER JOIN MATERIAS_POR_GRADO G ON D.ID_MATERIA_GRADO = G.ID_MATERIA_GRADO
+INNER JOIN ALUMNOS_POR_GRADO P ON A.ID_ALUMNO_GRADO = P.ID_ALUMNO_GRADO
+WHERE G.ID_PERIODO_ESCOLAR = @ID_PERIODO AND P.ID_ALUMNO = @ID_ALUMNO AND ID_BLOQUE_ESCOLAR = @ID_BLOQUE
+GROUP BY G.ID_MATERIA
+                    ) AS T ON X.ID_MATERIA = T.ID_MATERIA
+                    WHERE EXISTS (
+                        SELECT * 
+                        FROM MATERIAS_POR_GRADO H 
+                        WHERE H.ID_MATERIA = X.ID_MATERIA 
+                          AND ID_PERIODO_ESCOLAR = @ID_PERIODO
+                          AND H.ID_GRADO = (
+                                SELECT ID_GRADO 
+                                FROM ALUMNOS_POR_GRADO 
+                                WHERE ID_PERIODO_ESCOLAR = @ID_PERIODO AND ID_ALUMNO = @ID_ALUMNO
+                          )
+                    )
+                `);
+                notas = notasResult.recordset;
+            }
+
+            bloquesConNotas.push({
+                idBloque: ID_BLOQUE_ESCOLAR,
+                nombreBloque: NOMBRE_BLOQUE,
+                fechaFinaliza: FECHA_FINALIZA_BLOQUE,
+                solvente: SOLVENCIA >= 0,
+                notas: notas
+            });
+        }
+
+        res.json({
+            alumno: parseInt(idAlumno),
+            periodo: parseInt(idPeriodo),
+            materias,
+            bloques: bloquesConNotas
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener datos de notas por bloque.' });
+    }
+});
+
 module.exports = router;

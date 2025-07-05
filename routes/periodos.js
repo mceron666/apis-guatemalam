@@ -29,6 +29,44 @@ router.get('/seleccion', async (req, res) => {
         });
     }
 });
+router.get('/alumno/:id_alumno', async (req, res) => {
+    try {
+        const { id_alumno } = req.params;
+
+        // Validación: id_alumno es obligatorio
+        if (!id_alumno) {
+            return res.status(400).json({
+                error: 'El parámetro "id_alumno" es obligatorio en la ruta.'
+            });
+        }
+
+        const pool = await sql.connect();
+        const request = pool.request();
+        request.input('ID_ALUMNO', sql.Int, id_alumno);
+
+        const query = `
+            SELECT 
+                P.ID_PERIODO_ESCOLAR,
+                CODIGO_PERIODO,
+                DESCRIPCION_PERIODO
+            FROM VL_PERIODOS_ESCOLARES P 
+            INNER JOIN VL_ALUMNOS_POR_GRADO A 
+                ON P.ID_PERIODO_ESCOLAR = A.ID_PERIODO_ESCOLAR
+            WHERE A.ID_ALUMNO = @ID_ALUMNO
+            ORDER BY FECHA_INICIO_PERIODO DESC
+        `;
+
+        const result = await request.query(query);
+        res.json(result.recordset);
+
+    } catch (err) {
+        res.status(500).json({
+            error: 'Error al obtener los períodos escolares',
+            details: err.message
+        });
+    }
+});
+
 router.get('/:codigoPeriodo?', async (req, res) => {
     const { codigoPeriodo } = req.params;
     const page = parseInt(req.query.page) || 1;

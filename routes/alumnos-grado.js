@@ -70,6 +70,102 @@ router.post('/filtrar', async (req, res) => {
     }
 });
 
+router.post('/lista', async (req, res) => {
+    const {
+        ID_GRADO,
+        NOMBRE_COMPLETO,
+        CORREO_PERSONA,
+        SOLVENCIA,
+        page = 1,
+        limit = 10
+    } = req.body;
+
+    const offset = (page - 1) * limit;
+
+    try {
+        const pool = await sql.connect();
+
+        const request = pool.request();
+        const countRequest = pool.request();
+
+        let baseQuery = `
+            FROM VL_PERSONAL_ESCOLAR 
+            INNER JOIN GRADOS_ESCOLARES G 
+                ON G.ID_GRADO = dbo.GRADO_ACTUAL(ID_ALUMNO)
+            WHERE ID_ALUMNO IS NOT NULL
+              AND dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) IS NOT NULL
+        `;
+
+        // Condiciones dinámicas
+        if (ID_GRADO) {
+            baseQuery += ` AND G.ID_GRADO = @ID_GRADO`;
+            request.input('ID_GRADO', sql.Int, ID_GRADO);
+            countRequest.input('ID_GRADO', sql.Int, ID_GRADO);
+        }
+
+        if (NOMBRE_COMPLETO) {
+            baseQuery += ` AND NOMBRE_COMPLETO LIKE @NOMBRE_COMPLETO`;
+            request.input('NOMBRE_COMPLETO', sql.NVarChar, `%${NOMBRE_COMPLETO}%`);
+            countRequest.input('NOMBRE_COMPLETO', sql.NVarChar, `%${NOMBRE_COMPLETO}%`);
+        }
+
+        if (CORREO_PERSONA) {
+            baseQuery += ` AND CORREO_PERSONA LIKE @CORREO_PERSONA`;
+            request.input('CORREO_PERSONA', sql.NVarChar, `%${CORREO_PERSONA}%`);
+            countRequest.input('CORREO_PERSONA', sql.NVarChar, `%${CORREO_PERSONA}%`);
+        }
+
+        if (SOLVENCIA === 'Y') {
+            baseQuery += ` AND dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) >= 0`;
+        } else if (SOLVENCIA === 'N') {
+            baseQuery += ` AND dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) < 0`;
+        }
+
+        // Consulta principal con paginación
+        const dataQuery = `
+            SELECT 
+                ID_ALUMNO,
+                ID_PERSONA,
+                PERFIL_PERSONA,
+                NOMBRE_COMPLETO,
+                CORREO_PERSONA,
+                SECCION_GRADO,
+                dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) AS DIFERENCIA_SOLVENCIA,
+                NOMBRE_GRADO
+            ${baseQuery}
+            ORDER BY NIVEL_GRADO, G.CODIGO_GRADO
+            OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        `;
+
+        // Consulta de conteo total
+        const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
+
+        const result = await request.query(dataQuery);
+        const countResult = await countRequest.query(countQuery);
+
+        const total = countResult.recordset[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        res.json({
+            data: result.recordset,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: parseInt(page),
+                limit: parseInt(limit)
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            error: 'Error al obtener la lista de alumnos con filtros',
+            details: err.message
+        });
+    }
+});
+
+
+
 // Insertar, actualizar o eliminar alumno en grado
 router.post('/', async (req, res) => {
     const {

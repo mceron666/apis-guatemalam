@@ -40,6 +40,8 @@ const bloquesRoutes = require('./routes/bloques');
 const evaluacionesRoutes = require('./routes/evaluacion');
 const notasRoutes = require('./routes/notas');
 const calendarioRoutes = require('./routes/calendario');
+const preciosRoutes = require('./routes/precios');
+const pagosRoutes = require('./routes/pagos');
 
 app.use('/periodos', periodosRoutes);
 app.use('/carreras', carrerasRoutes);
@@ -53,6 +55,8 @@ app.use('/bloques', bloquesRoutes);
 app.use('/evaluaciones', evaluacionesRoutes);
 app.use('/notas', notasRoutes);
 app.use('/calendario', calendarioRoutes);
+app.use('/precios', preciosRoutes);
+app.use('/pagos', pagosRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {
