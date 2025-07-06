@@ -73,6 +73,7 @@ router.post('/filtrar', async (req, res) => {
 router.post('/lista', async (req, res) => {
     const {
         ID_GRADO,
+        ID_ALUMNO, // nuevo parámetro
         NOMBRE_COMPLETO,
         CORREO_PERSONA,
         SOLVENCIA,
@@ -96,11 +97,17 @@ router.post('/lista', async (req, res) => {
               AND dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) IS NOT NULL
         `;
 
-        // Condiciones dinámicas
+        // Filtros dinámicos
         if (ID_GRADO) {
             baseQuery += ` AND G.ID_GRADO = @ID_GRADO`;
             request.input('ID_GRADO', sql.Int, ID_GRADO);
             countRequest.input('ID_GRADO', sql.Int, ID_GRADO);
+        }
+
+        if (ID_ALUMNO) {
+            baseQuery += ` AND ID_ALUMNO = @ID_ALUMNO`;
+            request.input('ID_ALUMNO', sql.Int, ID_ALUMNO);
+            countRequest.input('ID_ALUMNO', sql.Int, ID_ALUMNO);
         }
 
         if (NOMBRE_COMPLETO) {
@@ -121,7 +128,6 @@ router.post('/lista', async (req, res) => {
             baseQuery += ` AND dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) < 0`;
         }
 
-        // Consulta principal con paginación
         const dataQuery = `
             SELECT 
                 ID_ALUMNO,
@@ -137,7 +143,6 @@ router.post('/lista', async (req, res) => {
             OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
         `;
 
-        // Consulta de conteo total
         const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
 
         const result = await request.query(dataQuery);
@@ -163,7 +168,6 @@ router.post('/lista', async (req, res) => {
         });
     }
 });
-
 
 
 // Insertar, actualizar o eliminar alumno en grado

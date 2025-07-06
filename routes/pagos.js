@@ -21,6 +21,7 @@ router.post('/filtrar', async (req, res) => {
 
         const query = `
             SELECT 
+                CORRELATIVO_DE_PAGO,
                 CASE TIPO_PAGO 
                     WHEN 'M' THEN 'Mensualidad' 
                     ELSE 'Inscripción' 
@@ -97,7 +98,7 @@ router.post('/seleccion', async (req, res) => {
           WHEN Numero = 0 THEN P.PRECIO_DE_INSCRIPCION 
           ELSE 
             CASE 
-              WHEN GETDATE() > CAST(CAST(YEAR(O.FECHA_INICIO_PERIODO) AS CHAR(4)) + '-' + FORMAT(Numero, '00') + '-05' AS DATE) 
+              WHEN CAST(GETDATE() AS DATE) > CAST(CAST(YEAR(O.FECHA_INICIO_PERIODO) AS CHAR(4)) + '-' + FORMAT(Numero, '00') + '-05' AS DATE) 
               THEN P.PRECIO_DE_MENSUALIDAD + P.MORA_AUMENTO_INSOLVENCIA 
               ELSE P.PRECIO_DE_MENSUALIDAD 
             END 
@@ -137,6 +138,46 @@ router.post('/seleccion', async (req, res) => {
     console.error('Error en el endpoint /pagos:', err);
     res.status(500).json({ error: 'Error al obtener los datos de pago' });
   }
+});
+router.post('/', async (req, res) => {
+    const {
+        CORRELATIVO_DE_PAGO,
+        ID_PERIODO_ESCOLAR,
+        ID_ALUMNO,
+        TIPO_PAGO,
+        MES_DE_PAGO,
+        MONTO_PAGADO,
+        METODO_DE_PAGO,
+        OBSERVACIONES,
+        ACCION
+    } = req.body;
+
+    try {
+        const request = new sql.Request();
+        request.input('CORRELATIVO_DE_PAGO', sql.Int, CORRELATIVO_DE_PAGO); 
+        request.input('ID_PERIODO_ESCOLAR', sql.Int, ID_PERIODO_ESCOLAR);
+        request.input('ID_ALUMNO', sql.Int, ID_ALUMNO);
+        request.input('TIPO_PAGO', sql.Char(1), TIPO_PAGO);
+        request.input('MES_DE_PAGO', sql.SmallInt, MES_DE_PAGO);
+        request.input('MONTO_PAGADO', sql.Decimal(10, 2), MONTO_PAGADO);
+        request.input('METODO_DE_PAGO', sql.Char(1), METODO_DE_PAGO);
+        request.input('OBSERVACIONES', sql.VarChar(255), OBSERVACIONES || null);
+        request.input('ACCION', sql.Char(1), ACCION);
+        request.output('MENSAJE', sql.NVarChar(255));
+
+        const result = await request.execute('PROCEDIMIENTO_PAGOS_COLEGIATURA');
+
+        const mensaje = result.output.MENSAJE || '';
+
+        if (mensaje.trim() !== '') {
+            return res.status(200).json({ mensaje });
+        }
+
+        res.status(200).json({ mensaje: '' });
+
+    } catch (err) {
+        res.status(500).json({ error: 'Error al ejecutar el procedimiento', detalles: err.message });
+    }
 });
 
 module.exports = router;

@@ -45,14 +45,11 @@ router.get('/alumno/:id_alumno', async (req, res) => {
         request.input('ID_ALUMNO', sql.Int, id_alumno);
 
         const query = `
-            SELECT 
-                P.ID_PERIODO_ESCOLAR,
-                CODIGO_PERIODO,
-                DESCRIPCION_PERIODO
-            FROM VL_PERIODOS_ESCOLARES P 
-            INNER JOIN VL_ALUMNOS_POR_GRADO A 
-                ON P.ID_PERIODO_ESCOLAR = A.ID_PERIODO_ESCOLAR
-            WHERE A.ID_ALUMNO = @ID_ALUMNO
+            SELECT A.ID_PERIODO_ESCOLAR, 
+            CODIGO_PERIODO+' '+NOMBRE_GRADO AS NOMBRE_PERIODO 
+            FROM ALUMNOS_POR_GRADO A INNER JOIN PERIODOS_ESCOLARES 
+            P ON A.ID_PERIODO_ESCOLAR = P.ID_PERIODO_ESCOLAR 
+	            INNER JOIN GRADOS_ESCOLARES G ON G.ID_GRADO = A.ID_GRADO WHERE ID_ALUMNO = @ID_ALUMNO
             ORDER BY FECHA_INICIO_PERIODO DESC
         `;
 

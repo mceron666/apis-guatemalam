@@ -42,6 +42,8 @@ const notasRoutes = require('./routes/notas');
 const calendarioRoutes = require('./routes/calendario');
 const preciosRoutes = require('./routes/precios');
 const pagosRoutes = require('./routes/pagos');
+const pdfRoutes = require('./routes/pdf'); // nuevo archivo
+
 
 app.use('/periodos', periodosRoutes);
 app.use('/carreras', carrerasRoutes);
@@ -57,6 +59,7 @@ app.use('/notas', notasRoutes);
 app.use('/calendario', calendarioRoutes);
 app.use('/precios', preciosRoutes);
 app.use('/pagos', pagosRoutes);
+app.use('/pdf', pdfRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {
