@@ -16,8 +16,8 @@ const dbConfig = {
     database: process.env.DB_NAME,
     options: {
         encrypt: false,
-        trustServerCertificate: true,
-    },
+        trustServerCertificate: true
+    }
 };
 
 // Conectar a SQL Server
@@ -42,7 +42,9 @@ const notasRoutes = require('./routes/notas');
 const calendarioRoutes = require('./routes/calendario');
 const preciosRoutes = require('./routes/precios');
 const pagosRoutes = require('./routes/pagos');
-const pdfRoutes = require('./routes/pdf'); // nuevo archivo
+const pdfRoutes = require('./routes/pdf'); 
+const institucionRoutes = require('./routes/institucion'); 
+const eventosRoutes = require('./routes/eventos'); 
 
 
 app.use('/periodos', periodosRoutes);
@@ -60,6 +62,8 @@ app.use('/calendario', calendarioRoutes);
 app.use('/precios', preciosRoutes);
 app.use('/pagos', pagosRoutes);
 app.use('/pdf', pdfRoutes);
+app.use('/institucion', institucionRoutes);
+app.use('/eventos', eventosRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {

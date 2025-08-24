@@ -47,6 +47,50 @@ router.get('/maestros', async (req, res) => {
         });
     }
 });
+router.get('/administradores', async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    try {
+        const pool = await sql.connect();
+        let countQuery = `SELECT COUNT(*) as total FROM VL_PERSONAL_ESCOLAR`;
+        let dataQuery = `
+            SELECT 
+                ID_PERSONA,
+                NOMBRE_COMPLETO
+            FROM VL_PERSONAL_ESCOLAR
+            WHERE ROL_PERSONA IN ('G', 'P')
+        `;
+
+        const request = pool.request();
+        const countRequest = pool.request();
+
+        dataQuery += ` ORDER BY NOMBRE_COMPLETO ASC OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+
+        const result = await request.query(dataQuery);
+        const countResult = await countRequest.query(countQuery);
+
+        const total = countResult.recordset[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        res.json({
+            data: result.recordset,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: page,
+                limit
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            error: 'Error al obtener el personal escolar',
+            details: err.message
+        });
+    }
+});
 router.get('/:codigoPerfil?', async (req, res) => {
     const { codigoPerfil } = req.params;
     const page = parseInt(req.query.page) || 1;
@@ -84,7 +128,8 @@ router.get('/:codigoPerfil?', async (req, res) => {
                 FECHA_INGRESA_REGISTRO,
                 FECHA_ULTIMA_ACTUALIZACION,
                 PERFIL_PERSONA_INGRESO,
-                NOMBRE_USUARIO_INGRESO
+                NOMBRE_USUARIO_INGRESO, 
+                DEBE_CAMBIAR_PASSWORD
             FROM VL_PERSONAL_ESCOLAR
         `;
 
@@ -173,7 +218,8 @@ router.get('/busqueda/:variable', async (req, res) => {
                     FECHA_INGRESA_REGISTRO,
                     FECHA_ULTIMA_ACTUALIZACION,
                     PERFIL_PERSONA_INGRESO,
-                    NOMBRE_USUARIO_INGRESO
+                    NOMBRE_USUARIO_INGRESO, 
+                    DEBE_CAMBIAR_PASSWORD                    
                 FROM VL_PERSONAL_ESCOLAR
                 WHERE NOMBRE_COMPLETO LIKE @nombreCompleto
                 ORDER BY NOMBRE_COMPLETO ASC

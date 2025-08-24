@@ -217,5 +217,167 @@ GROUP BY G.ID_MATERIA
         res.status(500).json({ error: 'Error al obtener datos de notas por bloque.' });
     }
 });
+router.get('/administracion/:idAlumno/:idPeriodo', async (req, res) => {
+    const { idAlumno, idPeriodo } = req.params;
+    const sql = require('mssql');
+
+    try {
+        const request = new sql.Request();
+        request.input('ID_ALUMNO', sql.Int, idAlumno);
+        request.input('ID_PERIODO', sql.Int, idPeriodo);
+
+        // 1. Obtener las materias asignadas al alumno
+        const materiasResult = await request.query(`
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY CODIGO_MATERIA) AS NUMERO, 
+                X.ID_MATERIA,
+                NOMBRE_MATERIA, 
+                COLOR_MATERIA, 
+                USA_LETRAS_BLANCAS
+            FROM MATERIAS_ESCOLARES X 
+            WHERE EXISTS (
+                SELECT * 
+                FROM MATERIAS_POR_GRADO H 
+                WHERE H.ID_MATERIA = X.ID_MATERIA 
+                  AND H.ID_PERIODO_ESCOLAR = @ID_PERIODO 
+                  AND H.ID_GRADO = (
+                        SELECT ID_GRADO 
+                        FROM ALUMNOS_POR_GRADO 
+                        WHERE ID_PERIODO_ESCOLAR = @ID_PERIODO AND ID_ALUMNO = @ID_ALUMNO
+                  )
+            )
+        `);
+        const materias = materiasResult.recordset;
+
+        // 2. Obtener los bloques escolares del período
+        const bloquesResult = await request.query(`
+            SELECT 
+                B.ID_BLOQUE_ESCOLAR, 
+                B.NOMBRE_BLOQUE, 
+                B.FECHA_FINALIZA_BLOQUE
+            FROM BLOQUES_ESCOLARES B 
+            INNER JOIN ALUMNOS_POR_GRADO G 
+                ON B.ID_PERIODO_ESCOLAR = G.ID_PERIODO_ESCOLAR 
+            WHERE G.ID_ALUMNO = @ID_ALUMNO AND G.ID_PERIODO_ESCOLAR = @ID_PERIODO
+        `);
+        const bloques = bloquesResult.recordset;
+
+        // 3. Armar estructura final con notas por bloque (sin verificar solvencia)
+        const bloquesConNotas = [];
+
+        for (const bloque of bloques) {
+            const { ID_BLOQUE_ESCOLAR, NOMBRE_BLOQUE, FECHA_FINALIZA_BLOQUE } = bloque;
+
+            const notasRequest = new sql.Request();
+            notasRequest.input('ID_ALUMNO', sql.Int, idAlumno);
+            notasRequest.input('ID_PERIODO', sql.Int, idPeriodo);
+            notasRequest.input('ID_BLOQUE', sql.Int, ID_BLOQUE_ESCOLAR);
+
+            const notasResult = await notasRequest.query(`
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY X.CODIGO_MATERIA) AS NUMERO,
+                    COALESCE(T.TOTAL, 0) AS TOTAL
+                FROM MATERIAS_ESCOLARES X
+                LEFT JOIN (
+                    SELECT G.ID_MATERIA, SUM(PUNTEO_ALUMNO) AS TOTAL 
+                    FROM NOTAS_EVALUACION_POR_ALUMNO A
+                    INNER JOIN EVALUACION_MATERIA_DETALLE D ON A.ID_DETALLE_EVALUACION = D.ID_DETALLE_EVALUACION 
+                    INNER JOIN MATERIAS_POR_GRADO G ON D.ID_MATERIA_GRADO = G.ID_MATERIA_GRADO
+                    INNER JOIN ALUMNOS_POR_GRADO P ON A.ID_ALUMNO_GRADO = P.ID_ALUMNO_GRADO
+                    WHERE G.ID_PERIODO_ESCOLAR = @ID_PERIODO 
+                      AND P.ID_ALUMNO = @ID_ALUMNO 
+                      AND ID_BLOQUE_ESCOLAR = @ID_BLOQUE
+                    GROUP BY G.ID_MATERIA
+                ) AS T ON X.ID_MATERIA = T.ID_MATERIA
+                WHERE EXISTS (
+                    SELECT * 
+                    FROM MATERIAS_POR_GRADO H 
+                    WHERE H.ID_MATERIA = X.ID_MATERIA 
+                      AND ID_PERIODO_ESCOLAR = @ID_PERIODO
+                      AND H.ID_GRADO = (
+                            SELECT ID_GRADO 
+                            FROM ALUMNOS_POR_GRADO 
+                            WHERE ID_PERIODO_ESCOLAR = @ID_PERIODO AND ID_ALUMNO = @ID_ALUMNO
+                      )
+                )
+            `);
+
+            bloquesConNotas.push({
+                idBloque: ID_BLOQUE_ESCOLAR,
+                nombreBloque: NOMBRE_BLOQUE,
+                fechaFinaliza: FECHA_FINALIZA_BLOQUE,
+                notas: notasResult.recordset
+            });
+        }
+
+        res.json({
+            alumno: parseInt(idAlumno),
+            periodo: parseInt(idPeriodo),
+            materias,
+            bloques: bloquesConNotas
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener datos de notas por bloque.' });
+    }
+});
+
+router.post('/actualizar/:idPeriodo', async (req, res) => {
+    const { idPeriodo } = req.params;
+
+    try {
+        const pool = await sql.connect(); // 🔁 Reutiliza la conexión global
+
+        // Ejecutar el procedimiento
+        const result = await pool.request()
+            .input('ID_PERIODO_ESCOLAR', sql.Int, idPeriodo)
+            .output('MENSAJE', sql.NVarChar(255))
+            .execute('GUARDAR_RESULTADOS_TODOS_GRADOS');
+
+        let mensaje = result.output.MENSAJE;
+        if (!mensaje || mensaje.trim() === '') {
+            mensaje = '';
+        }
+
+        // Consulta resumen por grado
+        const resumenResult = await pool.request()
+            .input('ID_PERIODO_ESCOLAR', sql.Int, idPeriodo)
+            .query(`
+                SELECT 
+                    G.CODIGO_GRADO, 
+                    G.NOMBRE_GRADO, 
+                    G.SECCION_GRADO, 
+                    T.GANADORES, 
+                    T.PERDEDORES, 
+                    T.RECUPERAN
+                FROM GRADOS_ESCOLARES G
+                INNER JOIN (
+                    SELECT 
+                        G.ID_GRADO, 
+                        SUM(CASE ESTADO_RESULTADO WHEN 'G' THEN 1 ELSE 0 END) AS GANADORES,
+                        SUM(CASE ESTADO_RESULTADO WHEN 'P' THEN 1 ELSE 0 END) AS PERDEDORES,
+                        SUM(CASE ESTADO_RESULTADO WHEN 'D' THEN 1 ELSE 0 END) AS RECUPERAN
+                    FROM RESULTADOS_POR_ALUMNO R
+                    INNER JOIN ALUMNOS_POR_GRADO A ON R.ID_ALUMNO_GRADO = A.ID_ALUMNO_GRADO
+                    INNER JOIN GRADOS_ESCOLARES G ON A.ID_GRADO = G.ID_GRADO
+                    WHERE A.ID_PERIODO_ESCOLAR = @ID_PERIODO_ESCOLAR
+                    GROUP BY G.ID_GRADO
+                ) AS T ON G.ID_GRADO = T.ID_GRADO
+            `);
+
+        res.json({
+            mensaje,
+            resumen: resumenResult.recordset
+        });
+
+    } catch (error) {
+        console.error('❌ Error en la ruta /guardar:', error);
+        res.status(500).json({
+            error: 'Error al ejecutar el procedimiento o al obtener el resumen.',
+            detalle: error.message
+        });
+    }
+});
 
 module.exports = router;

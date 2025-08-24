@@ -169,6 +169,103 @@ router.post('/lista', async (req, res) => {
     }
 });
 
+router.post('/resultados', async (req, res) => {
+    const {
+        ID_PERIODO_ESCOLAR,
+        ID_GRADO,
+        NOMBRE_COMPLETO,
+        ESTADO_RESULTADO,
+        page = 1,
+        limit = 10
+    } = req.body;
+
+    const offset = (page - 1) * limit;
+
+    try {
+        const pool = await sql.connect();
+
+        const request = pool.request();
+        const countRequest = pool.request();
+
+        let baseQuery = `
+            FROM VISTA_RESULTADOS_POR_ALUMNO
+            WHERE 1 = 1
+        `;
+
+        // Filtro por período escolar
+        if (ID_PERIODO_ESCOLAR) {
+            baseQuery += ` AND ID_PERIODO_ESCOLAR = @ID_PERIODO_ESCOLAR`;
+            request.input('ID_PERIODO_ESCOLAR', sql.Int, ID_PERIODO_ESCOLAR);
+            countRequest.input('ID_PERIODO_ESCOLAR', sql.Int, ID_PERIODO_ESCOLAR);
+        }
+
+        // Filtro por grado
+        if (ID_GRADO) {
+            baseQuery += ` AND ID_GRADO = @ID_GRADO`;
+            request.input('ID_GRADO', sql.Int, ID_GRADO);
+            countRequest.input('ID_GRADO', sql.Int, ID_GRADO);
+        }
+
+        // Filtro por nombre
+        if (NOMBRE_COMPLETO) {
+            baseQuery += ` AND NOMBRE_COMPLETO LIKE @NOMBRE_COMPLETO`;
+            request.input('NOMBRE_COMPLETO', sql.NVarChar, `%${NOMBRE_COMPLETO}%`);
+            countRequest.input('NOMBRE_COMPLETO', sql.NVarChar, `%${NOMBRE_COMPLETO}%`);
+        }
+
+        // Filtro por estado de resultado
+        if (ESTADO_RESULTADO) {
+            baseQuery += ` AND ESTADO_RESULTADO = @ESTADO_RESULTADO`;
+            request.input('ESTADO_RESULTADO', sql.Char, ESTADO_RESULTADO);
+            countRequest.input('ESTADO_RESULTADO', sql.Char, ESTADO_RESULTADO);
+        }
+
+        const dataQuery = `
+            SELECT 
+                ID_ALUMNO_GRADO,
+                ID_ALUMNO,
+                PERFIL_PERSONA,
+                NOMBRE_COMPLETO,
+                ESTADO_ALUMNO,
+                ID_GRADO,
+                NOMBRE_GRADO,
+                ID_PERIODO_ESCOLAR,
+                PROMEDIO_GENERAL,
+                ESTADO_RESULTADO,
+                NIVEL_GRADO,
+                IDENTIFICADOR_CARRERA_ESTUDIANTIL,
+                DESCRIPCION_ESTADO_ESULTADO
+            ${baseQuery}
+            ORDER BY NIVEL_GRADO, NOMBRE_GRADO
+            OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        `;
+
+        const countQuery = `SELECT COUNT(*) AS total ${baseQuery}`;
+
+        const result = await request.query(dataQuery);
+        const countResult = await countRequest.query(countQuery);
+
+        const total = countResult.recordset[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        res.json({
+            data: result.recordset,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: parseInt(page),
+                limit: parseInt(limit)
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            error: 'Error al obtener la lista de resultados por alumno',
+            details: err.message
+        });
+    }
+});
+
 
 // Insertar, actualizar o eliminar alumno en grado
 router.post('/', async (req, res) => {

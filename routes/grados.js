@@ -45,7 +45,7 @@ router.get('/:codigoGrado?/:forma?', async (req, res) => {
             countRequest.input('codigoGrado', sql.VarChar, codigoGrado);
         }
 
-        dataQuery += ` ORDER BY ID_GRADO DESC OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+        dataQuery += ` ORDER BY NIVEL_GRADO OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
 
         const result = await request.query(dataQuery);
         const countResult = await countRequest.query(countQuery);
