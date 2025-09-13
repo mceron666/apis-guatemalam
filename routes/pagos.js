@@ -96,6 +96,7 @@ router.post('/seleccion', async (req, res) => {
 
         CASE 
           WHEN Numero = 0 THEN P.PRECIO_DE_INSCRIPCION 
+		      WHEN numero = 1 THEN P.PRECIO_DE_MENSUALIDAD          
           ELSE 
             CASE 
               WHEN CAST(GETDATE() AS DATE) > CAST(CAST(YEAR(O.FECHA_INICIO_PERIODO) AS CHAR(4)) + '-' + FORMAT(Numero, '00') + '-05' AS DATE) 

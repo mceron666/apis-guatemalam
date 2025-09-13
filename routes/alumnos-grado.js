@@ -2,15 +2,20 @@ const express = require('express');
 const sql = require('mssql');
 
 const router = express.Router();
-router.post('/filtrar', async (req, res) => {
+router.post('/filtrar/:nombre?', async (req, res) => {
     const {
         ID_GRADO,
         ID_ALUMNO,
         ID_PERIODO_ESCOLAR,
-        page = 1,
-        limit = 10
+        page: bodyPage,
+        limit: bodyLimit
     } = req.body;
 
+    const { nombre } = req.params;
+
+    // Prioridad: query string → body → valor por defecto
+    const page = parseInt(req.query.page || bodyPage || 1);
+    const limit = parseInt(req.query.limit || bodyLimit || 10);
     const offset = (page - 1) * limit;
 
     try {
@@ -38,6 +43,12 @@ router.post('/filtrar', async (req, res) => {
             countRequest.input('ID_PERIODO_ESCOLAR', sql.Int, ID_PERIODO_ESCOLAR);
         }
 
+        if (nombre) {
+            baseQuery += ` AND NOMBRE_ALUMNO LIKE @nombre`;
+            request.input('nombre', sql.VarChar(100), `%${nombre}%`);
+            countRequest.input('nombre', sql.VarChar(100), `%${nombre}%`);
+        }
+
         const dataQuery = `
             SELECT * 
             ${baseQuery}
@@ -61,27 +72,30 @@ router.post('/filtrar', async (req, res) => {
             pagination: {
                 total,
                 totalPages,
-                currentPage: parseInt(page),
-                limit: parseInt(limit)
+                currentPage: page,
+                limit
             }
         });
     } catch (err) {
         res.status(500).json({ error: 'Error al obtener los registros', details: err.message });
     }
 });
-
 router.post('/lista', async (req, res) => {
-    const {
-        ID_GRADO,
-        ID_ALUMNO, // nuevo parámetro
-        NOMBRE_COMPLETO,
-        CORREO_PERSONA,
-        SOLVENCIA,
-        page = 1,
-        limit = 10
-    } = req.body;
+let {
+  ID_GRADO,
+  ID_ALUMNO,
+  NOMBRE_COMPLETO,
+  CORREO_PERSONA,
+  SOLVENCIA,
+  page = 1,
+  limit = 10
+} = req.body;
 
-    const offset = (page - 1) * limit;
+pagex = parseInt(page, 10);
+limitx = parseInt(limit, 10);
+
+const offset = (pagex - 1) * limitx;
+
 
     try {
         const pool = await sql.connect();
@@ -139,7 +153,7 @@ router.post('/lista', async (req, res) => {
                 dbo.DIFERENCIA_DE_SOLVENCIA(ID_ALUMNO, NULL) AS DIFERENCIA_SOLVENCIA,
                 NOMBRE_GRADO
             ${baseQuery}
-            ORDER BY NIVEL_GRADO, G.CODIGO_GRADO
+            ORDER BY NIVEL_GRADO, G.CODIGO_GRADO, ID_ALUMNO
             OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
         `;
 

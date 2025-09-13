@@ -82,6 +82,48 @@ router.get('/busqueda/:variable/busqueda', async (req, res) => {
     }
 });
 
+router.get('/seleccion/seleccion/seleccion/:idGrado?', async (req, res) => {
+    try {
+        const pool = await sql.connect();
+
+        const { idGrado } = req.params;
+
+        let query = '';
+        if (idGrado) {
+            // Si se pasa el parámetro, consulta por grado
+            query = `
+                SELECT * 
+                FROM VL_MATERIAS_POR_GRADO
+                WHERE ID_GRADO = @idGrado
+                ORDER BY FECHA_INGRESA_REGISTRO DESC
+            `;
+        } else {
+            // Si no se pasa, consulta general
+            query = `
+                SELECT * 
+                FROM VL_MATERIAS_ESCOLARES
+                ORDER BY FECHA_INGRESA_REGISTRO DESC
+            `;
+        }
+
+        const dataResult = await pool.request()
+            .input('idGrado', sql.Int, idGrado || null)
+            .query(query);
+
+        res.json({
+            data: dataResult.recordset
+        });
+
+    } catch (err) {
+        res.status(500).json({ 
+            error: 'Error al buscar la materia', 
+            details: err.message 
+        });
+    }
+});
+
+
+
 // Insertar, actualizar o eliminar materias
 router.post('/', async (req, res) => {
     const {
